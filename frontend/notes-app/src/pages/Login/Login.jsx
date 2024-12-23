@@ -3,11 +3,16 @@ import Navbar from "../../components/Navbar/navbar";
 import PasswordInput from "../../components/Input/PasswordInput";
 import { validateEmail } from "../../utils/Helper";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import axiosInstance from "../../utils/axiosInstance";
+
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
+
+  const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -20,8 +25,34 @@ const Login = () => {
       setError("Please enter a password.");
       return;
     }
-    
-    setError("")
+
+    setError("");
+
+    //login API
+    try {
+      const response = await axiosInstance.post("/login", {
+        email,
+        password,
+      });
+
+      //successful login
+      if (response.data && response.data.accessToken) {
+        localStorage.setItem("Token", response.data.accessToken);
+        navigate("/dashboard");
+        return;
+      }
+    } catch (error) {
+      //login failed
+      if (
+        error.response &&
+        error.response.data &&
+        error.response.data.message
+      ) {
+        setError(error.response.data.message);
+      } else {
+        setError("Something went wrong. Please try again later.");
+      }
+    }
   };
 
   return (

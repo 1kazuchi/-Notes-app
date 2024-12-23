@@ -96,7 +96,6 @@ app.post("/login", async (req, res) => {
 
 //get-users
 app.get("/get-user", authenticateToken, async (req, res) => {
-
   const { user } = req.user;
 
   const isUser = await User.findOne({ _id: user.user._id });
@@ -271,6 +270,38 @@ app.put("/update-note-pinned/:id", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating note:", error);
+    return res
+      .status(500)
+      .json({ error: true, message: "Internal Server Error" });
+  }
+});
+
+//search notes
+app.get("/search-notes/", authenticateToken, async (req, res) => {
+  const { user } = req.user;
+  const { query } = req.query;
+
+  if (!query) {
+    return res
+      .status(400)
+      .json({ error: true, message: "Search query is required" });
+  }
+  try {
+    const matchingNotes = await Note.find({
+      userId: user.user._id,
+      $or: [
+        { title: { $regex: query, $options: "i" } },
+        { content: { $regex: query, $options: "i" } },
+      ],
+    });
+
+    return res.json({
+      error: false,
+      notes: matchingNotes,
+      message: "Notes matching the search query fetched successfully",
+    });
+
+  } catch (error) {
     return res
       .status(500)
       .json({ error: true, message: "Internal Server Error" });

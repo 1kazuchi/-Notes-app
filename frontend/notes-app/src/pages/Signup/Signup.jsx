@@ -1,14 +1,17 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import PasswordInput from "../../components/Input/PasswordInput";
 import Navbar from "../../components/Navbar/navbar";
 import { useState } from "react";
 import { validateEmail } from "../../utils/Helper";
+import axiosInstance from "../../utils/axiosInstance";
 
 const Signup = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
+
+  const navigate = useNavigate();
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -25,8 +28,38 @@ const Signup = () => {
       setError("Please enter a password.");
       return;
     }
-    
+
     setError("");
+
+    //register API
+    try {
+      const response = await axiosInstance.post("/create-account", {
+        username: name,
+        email,
+        password,
+      });
+
+      //successful registration
+      if (response.data && response.data.error) {
+        setError(response.data.message);
+        return;
+      }
+      if (response.data && response.data.accessToken) {
+        localStorage.setItem("Token", response.data.accessToken);
+        navigate("/dashboard");
+      }
+    } catch (error) {
+      //registration failed
+      if (
+        error.response &&
+        error.response.data &&
+        error.response.data.message
+      ) {
+        setError(error.response.data.message);
+      } else {
+        setError("Something went wrong. Please try again later.");
+      }
+    }
   };
 
   return (

@@ -1,9 +1,16 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import NoteCard from "../../components/Card/NoteCard";
 import Navbar from "../../components/Navbar/navbar";
 import { Plus } from "lucide-react";
 import AddEditNotes from "./AddEditNotes";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Modal from "react-modal";
+import { useNavigate } from "react-router-dom";
+import axiosInstance from "../../utils/axiosInstance";
+import Toast from "../../components/Toast/Toast";
+import EmptyCard from "../../components/EmptyCard/EmptyCard";
+import AddNotes from "../../assets/images/add-note.svg";
+import NoData from "../../assets/images/no-data.svg";
 
 Modal.setAppElement("#root");
 
@@ -14,25 +21,169 @@ const Home = () => {
     data: null,
   });
 
+  const [notes, setNotes] = useState([]);
+  const [userInfo, setUserInfo] = useState(null);
+  const [isSearch, setIsSearch] = useState(false);
+
+  const [showToastMsg, setShowToastMsg] = useState({
+    isShow: false,
+    message: "",
+    type: "",
+  });
+
+  const navigate = useNavigate();
+
+  const EditNote = (noteDetails) => {
+    setOpenModal({ isShow: true, type: "edit", data: noteDetails });
+  };
+
+  const showToastMessage = (message, type) => {
+    setShowToastMsg({
+      isShow: true,
+      message,
+      type,
+    });
+  };
+
+  const handleCloseToast = () => {
+    setShowToastMsg({
+      isShow: false,
+      message: "",
+    });
+  };
+
+  //get user info
+  const getUserInfo = async () => {
+    try {
+      const response = await axiosInstance.get("/get-user");
+
+      if (response.data && response.data.user) {
+        setUserInfo(response.data.user);
+      }
+    } catch (error) {
+      if (error.response.status === 401) {
+        localStorage.clear();
+        navigate("/login");
+      }
+    }
+  };
+
+  //get all notes
+  const getAllNotes = async () => {
+    try {
+      const response = await axiosInstance.get("/get-notes");
+
+      if (response.data && response.data.notes) {
+        setNotes(response.data.notes);
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  //delete note
+  const deleteNote = async (data) => {
+    const id = data?._id;
+    try {
+      const response = await axiosInstance.delete("/delete-note/" + id);
+      if (response.data && !response.data.error) {
+        showToastMessage("Note deleted successfully", "delete");
+        getAllNotes();
+      }
+    } catch (error) {
+      if (
+        error.response &&
+        error.response.data &&
+        error.response.data.message
+      ) {
+        console.log("An unexpected error occurred.Please try again later.");
+      }
+    }
+  };
+
+  //search note
+  const onSearchNote = async (query) => {
+    try {
+      const response = await axiosInstance.get("/search-notes?", {
+        params: { query },
+      });
+      if (response.data && response.data.notes) {
+        setIsSearch(true);
+        setNotes(response.data.notes);
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  //update pinned
+  const updateIsPinned = async (notesData) => {
+    const id = notesData?._id;
+    try {
+      const response = await axiosInstance.put("/update-note-pinned/" + id, {
+        isPinned: !notesData.isPinned,
+      });
+      if (response.data && response.data.note) {
+        showToastMessage("Note updated successfully", "edit");
+        getAllNotes();
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  const handleClearSearch = () => {
+    setIsSearch(false);
+    getAllNotes();
+  };
+
+  useEffect(() => {
+    getAllNotes();
+    getUserInfo();
+    return () => {};
+  }, []);
+
   return (
     <>
-      <Navbar />
-
+      <Navbar
+        userInfo={userInfo}
+        onSearchNote={onSearchNote}
+        handleClearSearch={handleClearSearch}
+      />
       <div className="container mx-auto">
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
-          <NoteCard
-            title="Hi"
-            date="3 may 1996"
-            content="Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum"
-            tags="#test"
-            isPinned={true}
-            onEdit={() => {}}
-            onDelete={() => {}}
-            onPinNote={() => {}}
+        {notes.length > 0 ? (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
+            {notes.map((note, index) => (
+              <NoteCard
+                key={index}
+                title={note.title}
+                date={note.createdAt}
+                content={note.content}
+                tags={note.tags}
+                isPinned={note.isPinned}
+                onEdit={() => {
+                  EditNote(note);
+                }}
+                onDelete={() => {
+                  deleteNote(note);
+                }}
+                onPinNote={() => {
+                  updateIsPinned(note);
+                }}
+              />
+            ))}
+          </div>
+        ) : (
+          <EmptyCard
+            imgSrc={isSearch ? NoData : AddNotes}
+            message={
+              isSearch
+                ? `Oops! No notes found matching your search.`
+                : `Start creating your first notes! Click 'ADD' button to jot down your thoughts, ideas, and reminders. Let's get start`
+            }
           />
-        </div>
+        )}
       </div>
-
       <button
         className="w-16 h-16 flex items-center justify-center rounded-2xl bg-primary hover:bg-blue-600 absolute right-10 bottom-10"
         onClick={() => {
@@ -41,7 +192,6 @@ const Home = () => {
       >
         <Plus className="text-[32px] text-white" />
       </button>
-
       <Modal
         isOpen={openModal.isShow}
         onSequenceClose={() => {}}
@@ -59,8 +209,13 @@ const Home = () => {
           onClose={() => {
             setOpenModal({ isShow: false, type: "add", data: null });
           }}
+          getAllNotes={getAllNotes}
+          showToastMessage={showToastMessage}
         />
       </Modal>
+      <Toast isShow={showToastMsg.isShow} message={showToastMsg.message} />
+      type={showToastMsg.type}
+      onClose = {handleCloseToast}
     </>
   );
 };
